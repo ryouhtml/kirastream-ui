@@ -72,9 +72,12 @@ export const googleProvider = new GoogleAuthProvider()
 
 // ─── AUTH FUNCTIONS ──────────────────────────────────────────
 
-export async function loginWithGoogle() {
+// options.selectAccount = true dipakai saat menambah/mengganti akun, supaya
+// Google selalu menampilkan pemilih akun dan tidak langsung memakai akun aktif.
+export async function loginWithGoogle(options: { selectAccount?: boolean } = {}) {
   if (!auth) return { success: false, error: 'Firebase belum dikonfigurasi' }
   try {
+    googleProvider.setCustomParameters(options.selectAccount ? { prompt: 'select_account' } : {})
     const result = await signInWithPopup(auth, googleProvider)
     await syncUserToFirestore(result.user)
     return { success: true, user: result.user }

@@ -17,7 +17,7 @@ import {
   BookMarked,
   Clapperboard,
   LogOut,
-  User,
+  UserPlus,
   Newspaper,
   Users,
   MessageCircle,
@@ -29,6 +29,7 @@ import { translate } from '@/lib/i18n'
 import { motionTokens, adaptiveDuration } from '@/lib/motionTokens'
 import { LiquidGlassCursorButton, LiquidGlassCursorLink } from './LiquidGlassCursor'
 import NotificationBell from './NotificationBell'
+import AccountMenu from './AccountMenu'
 
 interface NavItem {
   label: string
@@ -40,7 +41,7 @@ const MotionLink = motion(Link)
 
 export default function TopNavbar() {
   const router = useRouter()
-  const { user, profile, loading: authLoading, logout } = useAuth()
+  const { user, profile, accounts, loading: authLoading, logout, addAccount } = useAuth()
   const { language, liquidGlass } = useSettings()
   const t = (key: string) => translate(language, key)
   // Glass nav pills always use the cursor-following liquid glass effect.
@@ -66,7 +67,6 @@ export default function TopNavbar() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const reduceMotion = useAnimationsEnabled()
   const navRef = useRef<HTMLElement | null>(null)
 
@@ -99,7 +99,6 @@ export default function TopNavbar() {
     ease: motionTokens.easing.smooth,
   }
   const drawerRef = useRef<HTMLElement | null>(null)
-  const profileMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains('dark'))
@@ -108,7 +107,6 @@ export default function TopNavbar() {
   useEffect(() => {
     setDrawerOpen(false)
     setSearchOpen(false)
-    setProfileMenuOpen(false)
   }, [router.pathname, router.asPath])
 
   useEffect(() => {
@@ -116,7 +114,6 @@ export default function TopNavbar() {
       if (navRef.current && !navRef.current.contains(e.target as Node)) {
         setDrawerOpen(false)
         setSearchOpen(false)
-        setProfileMenuOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
@@ -403,76 +400,27 @@ export default function TopNavbar() {
             {authLoading ? (
               <div className="hidden sm:block w-9 h-9 rounded-full bg-pearl/10 animate-pulse" />
             ) : user ? (
-              <div ref={profileMenuRef} className="hidden sm:relative sm:block">
-                {liquidGlass ? (
-                  <GlassButton
-                    onClick={() => setProfileMenuOpen((v) => !v)}
-                    className="!rounded-full !pl-1 !pr-2 !py-1"
-                    aria-haspopup="menu"
-                    aria-expanded={profileMenuOpen}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-primary dark:bg-accent flex items-center justify-center overflow-hidden">
-                      {profile?.photoURL ? (
-                        <img src={profile.photoURL} alt={profile?.displayName || 'Avatar'} className="w-full h-full object-cover" />
-                      ) : (
-                        <User size={16} className="text-white" />
-                      )}
-                    </div>
-                    <span className="hidden xl:block text-sm font-semibold max-w-[100px] truncate text-[var(--color-text)]">
-                      {profile?.displayName || user.displayName || 'KiraFan'}
-                    </span>
-                  </GlassButton>
-                ) : (
-                  <button
-                    onClick={() => setProfileMenuOpen((v) => !v)}
-                    className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full border border-pearl/10 hover:bg-pearl/10 transition-colors"
-                    aria-haspopup="menu"
-                    aria-expanded={profileMenuOpen}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-primary dark:bg-accent flex items-center justify-center overflow-hidden">
-                      {profile?.photoURL ? (
-                        <img src={profile.photoURL} alt={profile?.displayName || 'Avatar'} className="w-full h-full object-cover" />
-                      ) : (
-                        <User size={16} className="text-white" />
-                      )}
-                    </div>
-                    <span className="hidden xl:block text-sm font-semibold max-w-[100px] truncate">
-                      {profile?.displayName || user.displayName || 'KiraFan'}
-                    </span>
-                  </button>
-                )}
-
-                {profileMenuOpen && (
-                  <div
-                    role="menu"
-                    className="absolute right-0 top-full mt-2 w-52 card p-1.5 shadow-xl z-50"
-                  >
-                    <Link
-                      href="/profile"
-                      className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-[var(--color-text)] hover:bg-pearl/10 transition-colors"
-                      role="menuitem"
-                    >
-                      <User size={16} /> {t('nav.profile')}
-                    </Link>
-                    <button
-                      onClick={handleLogout}
-                      disabled={loggingOut}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
-                      role="menuitem"
-                    >
-                      <LogOut size={16} aria-hidden="true" />
-                      {loggingOut ? 'Logging out\u2026' : t('nav.logout')}
-                    </button>
-                  </div>
-                )}
-              </div>
+              <AccountMenu />
             ) : (
-              <Link
-                href="/login"
-                className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold bg-primary dark:bg-accent text-white dark:text-noir hover:opacity-90 transition-opacity"
-              >
-                <LogIn size={16} aria-hidden="true" /> {t('nav.login')}
-              </Link>
+              <>
+                {accounts.length > 0 && (
+                  <Link
+                    href="/accounts"
+                    className="hidden sm:inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[var(--color-text-muted)] transition-colors hover:bg-pearl/10 hover:text-[var(--color-text)]"
+                    aria-label={t('account.manage')}
+                    title={t('account.manage')}
+                  >
+                    <Users size={16} aria-hidden="true" />
+                    <span className="hidden xl:inline">{t('account.manage')}</span>
+                  </Link>
+                )}
+                <Link
+                  href="/login"
+                  className="hidden sm:inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold bg-primary dark:bg-accent text-white dark:text-noir hover:opacity-90 transition-opacity"
+                >
+                  <LogIn size={16} aria-hidden="true" /> {t('nav.login')}
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -614,6 +562,28 @@ export default function TopNavbar() {
                         </div>
                       </Link>
                       <button
+                        onClick={() => {
+                          setDrawerOpen(false)
+                          addAccount()
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-[var(--color-text-muted)] hover:bg-pearl/10 hover:text-[var(--color-text)] transition-colors"
+                      >
+                        <UserPlus size={18} aria-hidden="true" />
+                        {t('account.add')}
+                      </button>
+                      <Link
+                        href="/accounts"
+                        onClick={() => setDrawerOpen(false)}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                          isActive('/accounts')
+                            ? 'bg-primary/10 text-primary border border-primary/20'
+                            : 'text-[var(--color-text-muted)] hover:bg-pearl/10 hover:text-[var(--color-text)]'
+                        }`}
+                      >
+                        <Users size={18} aria-hidden="true" />
+                        {t('account.manage')}
+                      </Link>
+                      <button
                         onClick={handleLogout}
                         disabled={loggingOut}
                         className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
@@ -623,13 +593,25 @@ export default function TopNavbar() {
                       </button>
                     </>
                   ) : (
-                    <Link
-                      href="/login"
-                      className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary dark:text-accent font-medium border border-primary/20"
-                    >
-                      <LogIn size={18} aria-hidden="true" />
-                      {t('nav.loginRegister')}
-                    </Link>
+                    <>
+                      <Link
+                        href="/login"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary dark:text-accent font-medium border border-primary/20"
+                      >
+                        <LogIn size={18} aria-hidden="true" />
+                        {t('nav.loginRegister')}
+                      </Link>
+                      {accounts.length > 0 && (
+                        <Link
+                          href="/accounts"
+                          onClick={() => setDrawerOpen(false)}
+                          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-[var(--color-text-muted)] hover:bg-pearl/10 hover:text-[var(--color-text)] transition-colors"
+                        >
+                          <Users size={18} aria-hidden="true" />
+                          {t('account.manage')}
+                        </Link>
+                      )}
+                    </>
                   )}
                 </motion.div>
               </motion.nav>

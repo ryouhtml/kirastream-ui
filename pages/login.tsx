@@ -1,18 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Head from 'next/head'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Phone, Mail as MailIcon } from 'lucide-react'
+import { ArrowLeft, Phone, Mail as MailIcon, UserPlus, Users } from 'lucide-react'
 import type { ConfirmationResult } from 'firebase/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { sendPhoneOtp, confirmPhoneOtp } from '@/lib/firebase'
 import { translate } from '@/lib/i18n'
+import { clearAccountsReturnPath, getAccountsReturnPath, sanitizeReturnPath } from '@/lib/accounts'
 
 export default function LoginPage() {
   const router = useRouter()
-  const { loginWithGoogle, loginWithEmail, registerWithEmail } = useAuth()
+  const { loginWithGoogle, loginWithEmail, registerWithEmail, accounts } = useAuth()
   const { language } = useSettings()
   const t = (key: string) => translate(language, key)
   
@@ -30,6 +32,57 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false)
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
 
+  // ─── Mode multi-akun (?add=1 / ?switch=<uid>) ────────────
+  // add    : login akun baru, akun lama tetap tersimpan
+  // switch : login ulang ke akun yang sudah tersimpan (email diisi otomatis)
+  const [accountMode, setAccountMode] = useState<'none' | 'add' | 'switch'>('none')
+  const [targetUid, setTargetUid] = useState('')
+  const prefilledUidRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!router.isReady) return
+
+    const add = router.query.add === '1'
+    const switchId = typeof router.query.switch === 'string' ? router.query.switch : ''
+
+    if (switchId) {
+      setAccountMode('switch')
+      setTargetUid(switchId)
+      setMode('login')
+      // Prefill email sekali saja, jangan menimpa ketikan pengguna.
+      const saved = accounts.find((item) => item.uid === switchId)
+      if (saved?.email && prefilledUidRef.current !== switchId) {
+        setEmail(saved.email)
+        setMethod('email')
+        prefilledUidRef.current = switchId
+      } else if (saved && !saved.email && saved.providerId === 'phone') {
+        // Akun nomor HP tidak punya email — langsung tampilkan form OTP.
+        setMethod('phone')
+      }
+    } else if (add) {
+      setAccountMode('add')
+      setTargetUid('')
+      // Kalau sebelumnya sedang mode ganti akun, kosongkan email bawaan.
+      if (prefilledUidRef.current) {
+        setEmail('')
+        prefilledUidRef.current = null
+      }
+    } else {
+      setAccountMode('none')
+      setTargetUid('')
+    }
+  }, [router.isReady, router.query.add, router.query.switch, accounts])
+
+  const switchTarget = targetUid ? accounts.find((item) => item.uid === targetUid) || null : null
+  const switchName = switchTarget?.displayName || switchTarget?.email || ''
+
+  // Setelah berhasil login (atau batal), kembali ke halaman asal bila ada.
+  const goToReturnPath = () => {
+    const target = sanitizeReturnPath(getAccountsReturnPath() || '/')
+    clearAccountsReturnPath()
+    void router.push(target)
+  }
+
   // Menormalkan input nomor HP Indonesia ke format E.164 (+62...)
   const normalizePhoneNumber = (input: string) => {
     const v = input.trim().replace(/[\s-()]/g, '')
@@ -43,9 +96,9 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
-      const result = await loginWithGoogle()
+      const result = await loginWithGoogle({ selectAccount: accountMode !== 'none' })
       if (result.success) {
-        router.push('/')
+        goToReturnPath()
       } else {
         setError(t('login.googleFail'))
       }
@@ -65,7 +118,7 @@ export default function LoginPage() {
       if (mode === 'login') {
         const result = await loginWithEmail(email, password)
         if (result.success) {
-          router.push('/')
+          goToReturnPath()
         } else {
           setError(t('login.invalidCredentials'))
         }
@@ -77,7 +130,7 @@ export default function LoginPage() {
         }
         const result = await registerWithEmail(email, password, displayName)
         if (result.success) {
-          router.push('/')
+          goToReturnPath()
         } else {
           setError(t('login.registerFail'))
         }
@@ -119,7 +172,7 @@ export default function LoginPage() {
     try {
       const result = await confirmPhoneOtp(confirmationResult, otpCode)
       if (result.success) {
-        router.push('/')
+        goToReturnPath()
       } else {
         setError(t('login.otpInvalid'))
       }
@@ -140,7 +193,18 @@ export default function LoginPage() {
   return (
     <>
       <Head>
-        <title>{method === 'phone' ? t('login.phoneTitle') : mode === 'login' ? t('login.title') : t('login.register')} - KiraStream</title>
+        <title>
+          {accountMode === 'add'
+            ? t('account.addTitle')
+            : accountMode === 'switch'
+              ? t('account.switchTitle')
+              : method === 'phone'
+                ? t('login.phoneTitle')
+                : mode === 'login'
+                  ? t('login.title')
+                  : t('login.register')}{' '}
+          - KiraStream
+        </title>
       </Head>
 
       <div className="min-h-[80vh] flex items-center justify-center py-12">
@@ -166,6 +230,89 @@ export default function LoginPage() {
                   : mode === 'login' ? t('login.subtitle') : t('login.registerSubtitle')}
               </p>
             </div>
+
+            {/* Banner tambah / ganti akun */}
+            {accountMode !== 'none' && (
+              <div className="mb-6 rounded-xl border border-ocean/25 bg-ocean/5 p-4">
+                <div className="flex items-start gap-3">
+                  {accountMode === 'add' ? (
+                    <UserPlus size={18} className="mt-0.5 shrink-0 text-ocean" aria-hidden="true" />
+                  ) : (
+                    <Users size={18} className="mt-0.5 shrink-0 text-ocean" aria-hidden="true" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-[var(--color-text)]">
+                      {accountMode === 'add' ? t('account.addTitle') : t('account.switchTitle')}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-text-muted)]">
+                      {accountMode === 'add'
+                        ? t('account.addBanner')
+                        : switchName
+                          ? t('account.switchHint').replace('{name}', switchName)
+                          : t('account.switchGeneric')}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={goToReturnPath}
+                        className="rounded-lg bg-pearl/10 px-3 py-1.5 text-xs font-semibold text-[var(--color-text)] transition-colors hover:bg-pearl/20"
+                      >
+                        {t('account.cancel')}
+                      </button>
+                      <Link
+                        href="/accounts"
+                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-ocean transition-colors hover:bg-ocean/10"
+                      >
+                        {t('account.manage')}
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pilih akun lain saat mode ganti akun */}
+            {accountMode === 'switch' && accounts.length > 1 && (
+              <div className="mb-6">
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">
+                  {t('account.saved')}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {accounts.map((account) => {
+                    const isTarget = account.uid === targetUid
+                    return (
+                      <button
+                        key={account.uid}
+                        type="button"
+                        onClick={() => {
+                          setTargetUid(account.uid)
+                          setMode('login')
+                          setError('')
+                          prefilledUidRef.current = account.uid
+                          if (account.email) {
+                            setEmail(account.email)
+                            setMethod('email')
+                          } else {
+                            setEmail('')
+                            if (account.providerId === 'phone') setMethod('phone')
+                          }
+                        }}
+                        aria-pressed={isTarget}
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          isTarget
+                            ? 'border-ocean bg-ocean/10 text-ocean'
+                            : 'border-pearl/15 text-[var(--color-text-muted)] hover:bg-pearl/10 hover:text-[var(--color-text)]'
+                        }`}
+                      >
+                        <span className="max-w-[9rem] truncate">
+                          {account.displayName || account.email || 'KiraFan'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Method Tabs */}
             <div className="flex mb-6 rounded-xl bg-surface-card p-1">
@@ -284,15 +431,17 @@ export default function LoginPage() {
                     </button>
                   </form>
 
-                  {/* Toggle Mode */}
-                  <div className="mt-6 text-center">
-                    <button
-                      onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                      className="text-sm text-ocean hover:text-oceanAccent-secondary transition-colors"
-                    >
-                      {mode === 'login' ? t('login.toRegister') : t('login.toLogin')}
-                    </button>
-                  </div>
+                  {/* Toggle Mode (disembunyikan saat login ulang akun tersimpan) */}
+                  {accountMode !== 'switch' && (
+                    <div className="mt-6 text-center">
+                      <button
+                        onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+                        className="text-sm text-ocean hover:text-oceanAccent-secondary transition-colors"
+                      >
+                        {mode === 'login' ? t('login.toRegister') : t('login.toLogin')}
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               ) : (
                 <motion.div
