@@ -9,6 +9,7 @@ import Layout from '@/components/Layout'
 import SmoothScroll from '@/components/SmoothScroll'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { LoadingProvider } from '@/contexts/LoadingContext'
+import { NotificationProvider } from '@/contexts/NotificationContext'
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext'
 
 const jakarta = Plus_Jakarta_Sans({
@@ -56,16 +57,18 @@ export default function MyApp({ Component, pageProps }: AppProps) {
     <div className={`${jakarta.variable} ${notoJP.variable}`}>
       <AuthProvider>
         <SettingsProvider>
-          <LoadingProvider>
-            <Head>
-              <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
-              <meta name="theme-color" content="#000000" id="theme-color-meta" />
-            </Head>
-            <Script id="app-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: APP_INIT_SCRIPT }} />
-            <AppShell>
-              <Component {...pageProps} />
-            </AppShell>
-          </LoadingProvider>
+          <NotificationProvider>
+            <LoadingProvider>
+              <Head>
+                <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
+                <meta name="theme-color" content="#000000" id="theme-color-meta" />
+              </Head>
+              <Script id="app-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: APP_INIT_SCRIPT }} />
+              <AppShell>
+                <Component {...pageProps} />
+              </AppShell>
+            </LoadingProvider>
+          </NotificationProvider>
         </SettingsProvider>
       </AuthProvider>
     </div>

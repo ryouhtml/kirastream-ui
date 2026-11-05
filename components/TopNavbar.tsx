@@ -28,6 +28,7 @@ import { useSettings } from '@/contexts/SettingsContext'
 import { translate } from '@/lib/i18n'
 import { motionTokens, adaptiveDuration } from '@/lib/motionTokens'
 import { LiquidGlassCursorButton, LiquidGlassCursorLink } from './LiquidGlassCursor'
+import NotificationBell from './NotificationBell'
 
 interface NavItem {
   label: string
@@ -377,6 +378,8 @@ export default function TopNavbar() {
                 </AnimatePresence>
               </button>
             )}
+
+            <NotificationBell />
 
             {liquidGlass ? (
               <GlassLink
